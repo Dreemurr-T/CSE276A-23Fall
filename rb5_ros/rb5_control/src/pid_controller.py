@@ -18,21 +18,22 @@ class PID():
         self.min_error = min_error
     
     def update(self, dt, cur_point):
-        if self.last_input is not None:
-            self.cur_point = self.last_input + [i * dt for i in self.last_output]
-        else:
-            self.cur_point = cur_point
+        self.cur_point = cur_point
 
-        error = self.setpoint - self.cur_point
+        error = [self.setpoint[0] - self.cur_point[0], 
+            self.setpoint[1] - self.cur_point[1],
+            self.setpoint[2] - self.cur_point[2]
+        ]
 
-        dis_error = math.sqrt(math.pow(error[0], 2) + math.pow(error[1], 2))
-        if (dis_error <= self.min_error):
-            return [0.0, 0.0, 0.0]
-        
         self.integral += [i * dt for i in error]
-        derivative = (error - self.previous_error)/dt
+        derivative = [error[0] - self.previous_error[0], 
+            error[1] - self.previous_error[1],
+            error[2] - self.previous_error[2]
+        ]
 
-        output = [i * self.Kp for i in error] + [i * self.Ki for i in self.integral] + [i * self.Kd for i in derivative]
+        derivative = [i / dt for i in derivative]
+        
+        output = [error[i] * self.Kp + self.integral[i] * self.Ki + derivative[i] * self.Kd for i in range(3)]
 
         self.last_output = output
         self.last_input = self.cur_point
