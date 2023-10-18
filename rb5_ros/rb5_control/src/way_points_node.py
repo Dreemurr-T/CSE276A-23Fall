@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import rospy
-from pid_controller import PID
-from megapi import MegaPi
-from mpi_control import MegaPiController
+from pid_controller import PID  
+# from megapi import MegaPi
+# from mpi_control import MegaPiController
 # from sensor_msgs.msg import Joy
 from std_msgs.msg import Float64MultiArray
 import numpy as np
@@ -14,78 +14,47 @@ MFL = 11    # port for motor front left
 
 class WayPointsNode:
     def __init__(self, waypoint_path = 'src/waypoints.txt'):
-        # self.pub_joy = rospy.Publisher("/joy", Joy, queue_size=10)
-        # self.points_list = [
-        #     [0, 0, 0],
-        #     [1, 0, 0],
-        #     [1, 1, 1.57],
-        #     [2, 1, 0],
-        #     [2, 2, -1.57],
-        #     [1, 1, -0.78],
-        #     [0, 0, 0],    
-        # ]
 
         self.points_list = self.waypoint_reader(waypoint_path)
         # publish the velocity of each wheel to the velocity topic
         self.publisher = rospy.Publisher("/velocity", Float64MultiArray, queue_size=10)
 
-        self.v_x, self.v_y, self.rotate = 0, 0, 0
+        self.v_x, self.v_y, self.rotate = -1, -1, -1
         self.v_x_base = 50
         self.v_y_base = 50
         self.rotate_base = 50
         self.max_v = 100
         self.km = self.get_kinematic_matrix()
         self.wheels_rotate = [0] * 4
-        
+        self.rate = rospy.rate(10)      # 10hz
+
     
     def drive(self):
-        for i in range(len(self.points_list) - 1):
-            diff = [
-                self.points_list[i + 1][0] - self.points_list[i][0],
-                self.points_list[i + 1][1] - self.points_list[i][1],
-                self.points_list[i + 1][1] - self.points_list[i][1],
-            ]
-            
-            if diff[0] >= 0:
-                self.v_x = self.v_x_base
-            elif diff[0] == 0:
-                self.v_x = 0
-            elif diff[0] < 0:
-                self.v_x = -self.v_x_base
-                
-            if diff[1] >= 0:
-                self.v_y = self.v_y_base
-            elif diff[1] == 0:
-                self.v_y = 0
-            elif diff[1] < 0:
-                self.v_y = -self.v_y_base
-                
-            if diff[2] >= 0:
-                self.rotate = self.rotate_base
-            elif diff[0] == 0:
-                self.rotate = 0
-            elif diff[0] < 0:
-                self.rotate = -self.rotate_base
-            
-            self.wheels_rotate = [
-                self.km[0][0] * self.v_x + self.km[0][1] * self.v_y + self.km[0][2] * self.rotate,
-                self.km[1][0] * self.v_x + self.km[1][1] * self.v_y + self.km[1][2] * self.rotate,
-                self.km[2][0] * self.v_x + self.km[2][1] * self.v_y + self.km[2][2] * self.rotate,
-                self.km[3][0] * self.v_x + self.km[3][1] * self.v_y + self.km[3][2] * self.rotate,
-            ]
-            
-            max_rotate = max(self.wheels_rotate)
-            if max_rotate > 100:
+        for i in range(1, len(self.points_list)):
+            pid_control = PID(Kp=0.5, Ki=0.1, Kd=0.1, setpoint=self.points_list[i])
+
+            while self.vx != 0 or self.v_y != 0 or self.rotate != 0:
+                self.v_x, self.v_y, self.rotate = pid_control.update(0.1, self.points_list[i-1])
+
                 self.wheels_rotate = [
-                    self.wheels_rotate[0] / max_rotate * self.max_v,
-                    self.wheels_rotate[0] / max_rotate * self.max_v,
-                    self.wheels_rotate[0] / max_rotate * self.max_v,
-                    self.wheels_rotate[0] / max_rotate * self.max_v,
+                    self.km[0][0] * self.v_x + self.km[0][1] * self.v_y + self.km[0][2] * self.rotate,
+                    self.km[1][0] * self.v_x + self.km[1][1] * self.v_y + self.km[1][2] * self.rotate,
+                    self.km[2][0] * self.v_x + self.km[2][1] * self.v_y + self.km[2][2] * self.rotate,
+                    self.km[3][0] * self.v_x + self.km[3][1] * self.v_y + self.km[3][2] * self.rotate,
                 ]
-            
-            points_msg = self.wheels_rotate
-            
-            self.publisher.publish(points_msg)
+                
+                max_rotate = max(self.wheels_rotate)
+                if max_rotate > 100:
+                    self.wheels_rotate = [
+                        self.wheels_rotate[0] / max_rotate * self.max_v,
+                        self.wheels_rotate[0] / max_rotate * self.max_v,
+                        self.wheels_rotate[0] / max_rotate * self.max_v,
+                        self.wheels_rotate[0] / max_rotate * self.max_v,
+                    ]
+                
+                points_msg = self.wheels_rotate
+                self.publisher.publish(points_msg)
+                self.rate.sleep()
     
     
     def get_kinematic_matrix(self):

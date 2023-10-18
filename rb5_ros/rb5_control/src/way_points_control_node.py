@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import time
-from sensor_msgs.msg import Joy
+from std_msgs.msg import Float64MultiArray
 from mpi_control import MegaPiController
 
 class WayPointsControllerNode:
@@ -24,10 +24,11 @@ class WayPointsControllerNode:
             self.calibrated[2],
             self.calibrated[3],
         )
-        time.sleep(1)
+        time.sleep(0.1)
         
 if __name__ == "__main__":
     way_points_ctrl_node = WayPointsControllerNode()
-    rospy.init_node('way_points_controller')
-    rospy.Subscriber('/joy', Joy, way_points_ctrl_node.joy_callback, queue_size=10)
+    rospy.init_node('motor_controller')
+    # rospy.Subscriber('/joy', Joy, way_points_ctrl_node.joy_callback, queue_size=10)
+    rospy.Subscriber("/velocity", Float64MultiArray, way_points_ctrl_node.joy_callback, queue_size=10)
     rospy.spin()

@@ -1,11 +1,11 @@
-import rospy
+import math
 
 class PID():
     """
     A simple PID controller inspired by https://github.com/jellevos/simple-ros-pid.
     """
 
-    def __init__(self, Kp=0.2, Ki=0.0, Kd=0.0, setpoint=[0.0, 0.0, 0.0]):
+    def __init__(self, Kp=0.2, Ki=0.0, Kd=0.0, setpoint=[0.0, 0.0, 0.0], min_error=0.01):
         self.Kp, self.Ki, self.Kd = Kp, Ki, Kd
         self.setpoint = setpoint
 
@@ -15,6 +15,7 @@ class PID():
 
         self.integral = [0.0, 0.0, 0.0]
         self.previous_error = [0.0, 0.0, 0.0]
+        self.min_error = min_error
     
     def update(self, dt, cur_point):
         if self.last_input is not None:
@@ -22,7 +23,11 @@ class PID():
         else:
             self.cur_point = cur_point
 
-        error = self.setpoint - cur_point
+        error = self.setpoint - self.cur_point
+
+        dis_error = math.sqrt(math.pow(error[0], 2) + math.pow(error[1], 2))
+        if (dis_error <= self.min_error):
+            return [0.0, 0.0, 0.0]
         
         self.integral += [i * dt for i in error]
         derivative = (error - self.previous_error)/dt
