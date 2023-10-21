@@ -16,29 +16,36 @@ class WayPointsControllerNode:
         self.mpi_ctrl = MegaPiController(port='/dev/ttyUSB0')
         self.calibrated = [0.0] * 4
     
-    def joy_callback(self, msg):
+    def callback(self, msg):
         self.calibrated = [
-            1.0 * msg.data[0] / 7.53 * 50,
-            1.0 * msg.data[1] / 7.53 * 50,
-            1.27 * msg.data[2] / 7.53 * 50,
-            1.0 * msg.data[3] / 7.53 * 50,
+            1.0 * msg.data[0] / 8.69 * 45,
+            1.0 * msg.data[1] / 8.69 * 45,
+            1.27 * msg.data[2] / 8.69 * 45,
+            1.0 * msg.data[3] / 8.69 * 45,
         ]
 
-        if abs(max(self.calibrated)) > 110 or abs(min(self.calibrated)) > 110:
-            self.mpi_ctrl.carStop()
-        else:
-            self.mpi_ctrl.setFourMotors(
-                self.calibrated[0],
-                self.calibrated[1],
-                self.calibrated[2],
-                self.calibrated[3],
-            )
+        # if abs(max(self.calibrated)) > 110 or abs(min(self.calibrated)) > 110:
+        #     self.mpi_ctrl.carStop()
+        # else:
+        self.mpi_ctrl.setFourMotors(
+            self.calibrated[0],
+            -self.calibrated[1],
+            self.calibrated[2],
+            -self.calibrated[3],
+        )
         time.sleep(0.1)
+        # self.mpi_ctrl.setFourMotors(0,0,0,0)
+    
+    def end(self, msg):
+        if msg.data == "End":
+            return True
+        
+        return False
         
 if __name__ == "__main__":
     rospy.init_node('motor_controller')
     way_points_ctrl_node = WayPointsControllerNode()
     
     # rospy.Subscriber('/joy', Joy, way_points_ctrl_node.joy_callback, queue_size=10)
-    rospy.Subscriber("/velocity", Float64MultiArray, way_points_ctrl_node.joy_callback, queue_size=10)
+    rospy.Subscriber("/velocity", Float64MultiArray, way_points_ctrl_node.callback, queue_size=10)
     rospy.spin()
