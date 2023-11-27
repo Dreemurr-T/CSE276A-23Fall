@@ -53,7 +53,7 @@ const cv::Mat d(cv::Size(1, 5), CV_64FC1, distortion_coeff);
 const cv::Mat K(cv::Size(3, 3), CV_64FC1, intrinsics);
 // TODO: Set tagSize for pose estimation, assuming same tag size.
 // details from: https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#pose-estimation
-const double tagSize = 0.177; // in meters
+const double tagSize = 0.125; // in meters
 
 // double marker_translation[3][3] = {
 //   {0, -0.1, 0}, {1.4, 0, 0}, {1, 2.28, 0}
