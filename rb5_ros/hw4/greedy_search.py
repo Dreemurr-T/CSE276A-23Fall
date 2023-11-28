@@ -66,8 +66,8 @@ def equals(goal, cur):
 #     while not que.empty():
 #         cur = que.get()
 
-#         # if equals(goal, cur):
-#         #     break
+#         if equals(goal, cur):
+#             break
         
 #         for direction in directions:
 #             nextX, nextY = cur[0] + direction[0], cur[1] + direction[1]
@@ -107,7 +107,7 @@ def greedy_search(start, goal, m, n, world_grid, mw, hw, sw):
             if nextX < 0 or nextX == m-1 or nextY < 0 or nextY == n-1:
                 continue
         
-            if world_grid[nextX, nextY] == -1:
+            if world_grid[nextX, nextY] == 1:
                 continue
 
             next = (nextX, nextY)
@@ -130,8 +130,8 @@ if __name__ == '__main__':
     world_grid[start_point] = 3
     world_grid[target_point] = 3
 
-    # print(world_grid)
-
+    print(world_grid)
+    # path = []
     # came_from, world_grid = Astar_planning(start_point, target_point, m, n, world_grid)
     
     # pre = target_point
@@ -140,12 +140,8 @@ if __name__ == '__main__':
     #     path.append(pre)
     #     pre = came_from[pre]
     
-    safety_path = greedy_search(start_point, target_point, m, n, world_grid, mw=6, hw=2, sw=100)
-    speed_path = greedy_search(start_point, target_point, m, n, world_grid, mw=1, hw=2, sw=6)
-    # for p in speed_path:
-    #     world_grid[p] = 2
-    
-    # print(world_grid)
+    safety_path = greedy_search(start_point, target_point, m, n, world_grid, mw=5, hw=1, sw=100)
+    speed_path = greedy_search(start_point, target_point, m, n, world_grid, mw=1, hw=2, sw=10)
 
     x = []
     y = []
@@ -153,7 +149,7 @@ if __name__ == '__main__':
         x.append(p[0])
         y.append(p[1])
 
-    coeffs = np.polyfit(x, y, deg=6)
+    coeffs = np.polyfit(x, y, deg=4)
 
     p1 = np.poly1d(coeffs)
     yvals = p1(x)
@@ -161,7 +157,7 @@ if __name__ == '__main__':
     plt.plot(*zip(*speed_path))
     plt.plot(*zip(*safety_path))
     plt.plot(x, yvals)
-    # plt.plot(x, y)
+    plt.plot(x, y)
 
     plt.show()
     
