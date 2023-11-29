@@ -1,8 +1,9 @@
-import queue
+# import queue
 import numpy as np
 from collections import defaultdict
 import math
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 def create_world(length, width):
     m = int(length / 0.1) + 1       # number of rows
@@ -169,8 +170,42 @@ def generate_speed_path():
     target_point = (4, 16)
 
     speed_path = greedy_search(start_point, target_point, m, n, world_grid, mw=1, hw=2, sw=5, mode='speed')
+    
+    # Optimization of the generated path
+    speed_path = speed_path[:-1]
+    speed_path[-1] = target_point
 
-    return speed_path
+    sim_path = []
+    for i in range(len(speed_path)):
+        startx, starty = start_point[0], start_point[1]
+        curx, cury = speed_path[i][0], speed_path[i][1]
+
+        flag = 0
+        for j in range(min(startx, curx), max(startx, curx), 1):
+            for k in range(min(starty, cury), max(starty, cury), 1):
+                if world_grid[j, k] == 1:
+                    flag = 1
+                    break
+
+        if flag:
+            sim_path.append(start_point)
+            start_point = speed_path[i-1]
+
+        if i == len(speed_path) - 1:
+            sim_path.append(start_point)
+
+    sim_path.append(target_point)
+    
+    path = sim_path
+    for i in range(1, len(sim_path), 1):
+        dy = sim_path[i][1] - sim_path[i-1][1]
+        dx = sim_path[i][0] - sim_path[i-1][0]
+        angle = math.atan2(dy, dx)
+        path[i] = (sim_path[i][0] * 0.1, sim_path[i][1] * 0.1, angle)
+
+    path[0] = (1.6, 0.4, math.pi)
+    path[-1] = (0.4, 1.6, math.pi/2)
+    return np.array(path)
 
 if __name__ == '__main__':
     # world_grid, m, n = create_world(length=2, width=2)
@@ -196,16 +231,3 @@ if __name__ == '__main__':
 
     speed_path = generate_speed_path()
     print(speed_path)
-
-    x = []
-    y = []
-
-    for p in safety_path:
-        x.append(p[0])
-        y.append(p[1])
-
-    plt.plot(*zip(*speed_path))
-    # plt.plot(*zip(*safety_path))
-    # plt.plot(x, y)
-
-    plt.show()

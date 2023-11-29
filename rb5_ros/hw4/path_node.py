@@ -7,7 +7,7 @@ import time
 import numpy as np
 import tf
 import tf2_ros
-from tf.transformations import quaternion_matrix
+from tf.transformations import quaternion_matrix, euler_from_quaternion
 from greedy_search import generate_safety_path, generate_speed_path
 
 class WayPointsNode:
@@ -21,13 +21,13 @@ class WayPointsNode:
         self.km = self.get_kinematic_matrix()               # kinematic matrix
         self.wheels_angular = [0.0] * 4                     # angular speed of the four wheels 
         self.min_angular = 6.5                            # minimum angular speed of each wheel (rad/s)
-        self.max_angular = 9.5                            # maximum angular speed of each wheel (rad/s)
+        self.max_angular = 8.5                            # maximum angular speed of each wheel (rad/s)
 
         self.curpoint = np.zeros(3)                         # current position of the robot
-        self.dt = 0.1                                       # timestep for pid controller
+        self.dt = 0.05                                       # timestep for pid controller
         self.cur_error = np.zeros(3)
 
-        self.min_error = 0.05                  
+        self.min_error = 0.1                  
         self.pid_control = PID(Kp=0.2, Ki=0.0, Kd=0.0, setpoint=self.curpoint)
 
         self.listener = tf.TransformListener()
@@ -78,7 +78,9 @@ class WayPointsNode:
         return kinematic_matrix
     
     def get_error(self):
-        return np.linalg.norm(self.cur_error)
+        # In this task, we care less about the angle of the car
+        error = [self.cur_error[0], self.cur_error[1]]
+        return np.linalg.norm(error)
 
     def _clamp(self):
         lx = 0.066      # distance between front wheels (m)
@@ -122,15 +124,17 @@ class WayPointsNode:
             if self.listener.frameExists(body_name):
                 try:
                     now = rospy.Time()
-                    # wait for the transform ready from the map to the camera for 0.5 second.
-                    self.listener.waitForTransform("world", body_name, now, rospy.Duration(0.5))
+                    # wait for the transform ready from the map to the camera for 0.1 second.
+                    self.listener.waitForTransform("world", body_name, now, rospy.Duration(0.1))
                     # extract the transform camera pose in the map coordinate.
                     (trans, rot) = self.listener.lookupTransform("world", body_name, now)
                     # convert the rotate matrix to theta angle in 2d
-                    matrix = quaternion_matrix(rot)
-                    angle = math.atan2(matrix[1][2], matrix[0][2])
+                    # matrix = quaternion_matrix(rot)
+                    # angle = math.atan2(matrix[1][2], matrix[0][2])
+                    (roll, pitch, yaw) = euler_from_quaternion(rot)
+                    yaw = pi2pi(yaw)
 
-                    result = np.array([trans[0], trans[1], angle])
+                    result = np.array([trans[0], trans[1], yaw])
                     foundSolution = True
                     break
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, tf2_ros.TransformException):
@@ -139,40 +143,6 @@ class WayPointsNode:
 
         if foundSolution:
             self.curpoint = result
-        
-# def get_interpoints(setpoint, curpoint):
-#     interpoint1 = [0.0, 0.0, 0.0]
-#     interpoint2 = [0.0, 0.0, 0.0]
-#     for i in range(2):
-#         interpoint1[i] = curpoint[i]
-#         interpoint2[i] = setpoint[i]
-
-#     space = 0
-#     dy = setpoint[1] - curpoint[1]
-#     dx = setpoint[0] - curpoint[0]
-
-#     d = math.sqrt(math.pow(dx, 2) + math.pow(dy, 2))
-#     if d != 0:
-#         theta = math.acos(dx/d)
-#     else:
-#         theta = curpoint[2]
-
-#     if dy >= 0 and dx >= 0:
-#         space = 1
-#     elif dy >= 0 and dx <= 0:
-#         space = 2
-#     elif dy <= 0 and dx <= 0:
-#         space = 3
-#     elif dy <= 0 and dx >= 0:
-#         space = 4
-    
-#     if space == 3 or space == 4:
-#         theta *= -1
-    
-#     interpoint1[2] = theta
-#     interpoint2[2] = theta
-
-#     return interpoint1, interpoint2
 
 def pi2pi(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
@@ -180,31 +150,25 @@ def pi2pi(angle):
 if __name__ == "__main__":
     rospy.init_node("way_points")
     waypoints_node = WayPointsNode()
-    # points_list = [
-    #     [0.0, 0.0, 0.0],
-    #     [1.0, 0.0, 0.0],
-    #     [1.0, 2.0, math.pi],
-    #     [0.0, 0.0, 0.0]
-    # ]
-    points_list = [
-        [1.6, 0.4, math.pi / 2],
-        [1.5, 0.5, 3 * math.pi / 4],
-        [0.4, 0.5, math.pi],
-        [0.4, 1.6, math.pi / 2]
-    ]
+
+    points_list = generate_safety_path()
+    # points_list = generate_speed_path()
 
     for i in range(len(points_list)-1):
         setpoint = points_list[i+1]
         prepoint = points_list[i]
 
-        waypoints_node.cur_error = setpoint - prepoint
+        if i == 0:
+            waypoints_node.curpoint = prepoint
+
+        waypoints_node.cur_error = setpoint - waypoints_node.curpoint
         waypoints_node.cur_error[2] = pi2pi(waypoints_node.cur_error[2])
 
         waypoints_node.pid_control.clear(Kp=0.2, Ki=0, Kd=0, setpoint=setpoint)
 
         while waypoints_node.get_error() >= waypoints_node.min_error:
             waypoints_node.drive()
-            time.sleep(0.1)
+            time.sleep(0.05)
             waypoints_node.update_pos()
 
     waypoints_node.send_end_signal()
