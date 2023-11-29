@@ -20,7 +20,7 @@ def create_world(length, width):
 
     return world_grid, m, n
 
-def set_obstacle(startx, starty, obLen, obWid):
+def set_obstacle(world_grid, startx, starty, obLen, obWid):
     l = int(obLen / 0.1) + 1
     w = int(obWid / 0.1) + 1
 
@@ -90,14 +90,28 @@ def equals(goal, cur):
     
 #     return came_from, world_grid
 
-def greedy_search(start, goal, m, n, world_grid, mw, hw, sw):
+def greedy_search(start, goal, m, n, world_grid, mw, hw, sw, mode='safety'):
     directions = [[-1, 0], [0, 1], [-1, 1]]
     cur = start
-
-    path = []
+    
+    pre_direction = (0, 0)
+    cur_direction = pre_direction
+    if mode == 'safety':
+        path = []
+    else:
+        path = [cur]
 
     while not equals(cur, goal):
-        path.append(cur)
+        if mode != 'safety':
+            if cur_direction == pre_direction:
+                path[-1] = cur
+            else:
+                path.append(cur)
+        else:
+            path.append(cur)
+        # path.append(cur)
+
+        pre_direction = cur_direction
         min_cost = float('inf')
         tmp = cur
 
@@ -116,21 +130,58 @@ def greedy_search(start, goal, m, n, world_grid, mw, hw, sw):
             if estimated_cost < min_cost:
                 min_cost = estimated_cost
                 tmp = next
+                cur_direction = (direction[0], direction[1])
         cur = tmp
-    
     path.append(goal)
     return path
 
-if __name__ == '__main__':
+def generate_safety_path():
     world_grid, m, n = create_world(length=2, width=2)
-    world_grid = set_obstacle(startx=8, starty=8, obLen=0.4, obWid=0.4)
+    world_grid = set_obstacle(world_grid, startx=8, starty=8, obLen=0.4, obWid=0.4)
 
     start_point = (16, 4)
     target_point = (4, 16)
-    world_grid[start_point] = 3
-    world_grid[target_point] = 3
 
-    print(world_grid)
+    path = []
+    safety_path = greedy_search(start_point, target_point, m, n, world_grid, mw=5, hw=1, sw=100, mode='safety')
+
+    path.append((start_point[0], start_point[1], math.pi))
+
+    for i in range(len(safety_path) - 1):
+        direction = [safety_path[i+1][0] - safety_path[i][0], safety_path[i+1][1] - safety_path[i][1]]
+        if direction == [-1, 0]:
+            angle = math.pi
+        elif direction == [0, 1]:
+            angle = math.pi / 2
+        else:
+            angle = 3 * math.pi / 4
+        
+        p = (safety_path[i+1][0], safety_path[i+1][1], angle)
+        path.append(p)
+    
+    return np.array(path)
+
+def generate_speed_path():
+    world_grid, m, n = create_world(length=2, width=2)
+    world_grid = set_obstacle(world_grid, startx=8, starty=8, obLen=0.4, obWid=0.4)
+
+    start_point = (16, 4)
+    target_point = (4, 16)
+
+    speed_path = greedy_search(start_point, target_point, m, n, world_grid, mw=1, hw=2, sw=5, mode='speed')
+
+    return speed_path
+
+if __name__ == '__main__':
+    # world_grid, m, n = create_world(length=2, width=2)
+    # world_grid = set_obstacle(startx=8, starty=8, obLen=0.4, obWid=0.4)
+
+    # start_point = (16, 4)
+    # target_point = (4, 16)
+    # world_grid[start_point] = 3
+    # world_grid[target_point] = 3
+
+    # print(world_grid)
     # path = []
     # came_from, world_grid = Astar_planning(start_point, target_point, m, n, world_grid)
     
@@ -140,24 +191,21 @@ if __name__ == '__main__':
     #     path.append(pre)
     #     pre = came_from[pre]
     
-    safety_path = greedy_search(start_point, target_point, m, n, world_grid, mw=5, hw=1, sw=100)
-    speed_path = greedy_search(start_point, target_point, m, n, world_grid, mw=1, hw=2, sw=10)
+    safety_path = generate_safety_path()
+    print(safety_path)
+
+    speed_path = generate_speed_path()
+    print(speed_path)
 
     x = []
     y = []
-    for p in speed_path:
+
+    for p in safety_path:
         x.append(p[0])
         y.append(p[1])
 
-    coeffs = np.polyfit(x, y, deg=4)
-
-    p1 = np.poly1d(coeffs)
-    yvals = p1(x)
-
     plt.plot(*zip(*speed_path))
-    plt.plot(*zip(*safety_path))
-    plt.plot(x, yvals)
-    plt.plot(x, y)
+    # plt.plot(*zip(*safety_path))
+    # plt.plot(x, y)
 
     plt.show()
-    

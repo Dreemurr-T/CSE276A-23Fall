@@ -55,9 +55,16 @@ const cv::Mat K(cv::Size(3, 3), CV_64FC1, intrinsics);
 // details from: https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#pose-estimation
 const double tagSize = 0.125; // in meters
 
-// double marker_translation[3][3] = {
-//   {0, -0.1, 0}, {1.4, 0, 0}, {1, 2.28, 0}
-// };
+double marker_translation[8][3] = {
+  {0.667, 0, 0}, 
+  {1.333, 0, 0}, 
+  {0, 0.667, 0},
+  {0, 1.333, 0},
+  {0.667, 2.0, 0},
+  {1.333, 2.0, 0},
+  {2.0, 0.667, 0},
+  {2.0, 1.333, 0},
+};
 
 cv::Mat rectify(const cv::Mat image){
   cv::Mat image_rect = image.clone();
@@ -83,6 +90,8 @@ void publishTransforms(vector<apriltag_pose_t> poses, vector<int> ids, std_msgs:
   pose_array_msg.header = header;
   // apriltag_detection_array_msg.header = header;
 
+  double correction = 1.0 + (0.274 / (1-0.274));
+
   for (int i=0; i<poses.size(); i++){
 
     // translation
@@ -95,7 +104,7 @@ void publishTransforms(vector<apriltag_pose_t> poses, vector<int> ids, std_msgs:
     //                  poses[i].R->data[6], poses[i].R->data[7], poses[i].R->data[8]);
 
     // constrain the marker pose in 2d
-    tf.setOrigin(tf::Vector3(poses[i].t->data[0], 0, poses[i].t->data[2]));
+    tf.setOrigin(tf::Vector3(correction * poses[i].t->data[0], 0, correction * poses[i].t->data[2]));
 
     so3_mat.setValue(poses[i].R->data[0],0,-poses[i].R->data[6],
 		     0,1,0,
@@ -115,7 +124,6 @@ void publishTransforms(vector<apriltag_pose_t> poses, vector<int> ids, std_msgs:
     br.sendTransform(tf::StampedTransform(tf, ros::Time::now(), camera_name, marker_name));
     ROS_INFO("Transformation published for marker.");
 
-    
     // Prepare PoseArray message
     geometry_msgs::Pose pose;
     pose.position.x = poses[i].t->data[0];
@@ -182,9 +190,10 @@ void publishWorldMarkerTF(int num) {
     string marker_name = "marker_" + to_string(i);
     tf.setOrigin(tf::Vector3(marker_translation[i][0],marker_translation[i][1],marker_translation[i][2]));
 
-    if (i == 0) so3_mat.setValue(-1,0,0,0,0,-1,0,-1,0);
-    else if (i == 1) so3_mat.setValue(0,0,1,-1,0,0,0,-1,0);
-    else if (i == 2) so3_mat.setValue(1,0,0,0,0,1,0,-1,0);
+    if ((i == 0) || (i == 1)) so3_mat.setValue(-1,0,0,0,0,-1,0,-1,0);
+    else if ((i == 2) || (i == 3)) so3_mat.setValue(0,0,1,1,0,0,0,-1,0);
+    else if ((i == 4) || (i == 5)) so3_mat.setValue(1,0,0,0,0,1,0,-1,0);
+    else if ((i == 6) || (i == 7)) so3_mat.setValue(0,0,1,-1,0,0,0,-1,0);
 
     double roll, pitch, yaw;
 
@@ -206,8 +215,8 @@ void imageCallback(const sensor_msgs::Image::ConstPtr& msg){
   // rectify and run detection (pair<vector<apriltag_pose_t>, cv::Mat>)
   auto april_obj =  det.processImage(rectify(img_cv->image));
 
-  // publishCameraBodyTF(3);
-  // publishWorldMarkerTF(3);
+  publishCameraBodyTF(8);
+  publishWorldMarkerTF(8);
   publishTransforms(get<0>(april_obj), get<1>(april_obj), header);
 }
 
