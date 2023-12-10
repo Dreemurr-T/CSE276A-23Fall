@@ -72,10 +72,35 @@ def generate_coverage1():
     
     return np.array(path), np.array(waypoints)
 
-# def generate_coverage2():
+def generate_coverage2():
+    world_grid, m, n = create_world(length=2, width=2)
     
+    X_pos = np.arange(0.2, 1.9, 0.1)
+    X_neg = np.arange(1.8, 0.1, -0.1)
+    
+    curY = 0.2
+    direct = 1
+
+    waypoints = []
+
+    while curY < 1.9:
+        if direct == 1:
+            for x in X_pos:
+                p = (x, curY, 0)
+                waypoints.append(p)
+        elif direct == -1:
+            for x in X_neg:
+                p = (x, curY, math.pi)
+                waypoints.append(p)
+        
+        curY += 0.1
+        direct *= -1
+
+    return np.array(waypoints)
+
 
 if __name__ == '__main__':    
-    path, waypoints = generate_coverage1()
-    print(path.shape, waypoints.shape)
-    
+    # path, waypoints = generate_coverage1()
+    # print(path.shape, waypoints.shape)
+    waypoints = generate_coverage2()
+    print(waypoints)

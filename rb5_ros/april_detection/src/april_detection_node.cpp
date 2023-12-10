@@ -53,17 +53,17 @@ const cv::Mat d(cv::Size(1, 5), CV_64FC1, distortion_coeff);
 const cv::Mat K(cv::Size(3, 3), CV_64FC1, intrinsics);
 // TODO: Set tagSize for pose estimation, assuming same tag size.
 // details from: https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#pose-estimation
-const double tagSize = 0.125; // in meters
+const double tagSize = 0.12; // in meters
 
 double marker_translation[8][3] = {
-  {0.667, 0, 0}, 
-  {1.333, 0, 0}, 
-  {0, 0.667, 0},
-  {0, 1.333, 0},
-  {0.667, 2.0, 0},
-  {1.333, 2.0, 0},
-  {2.0, 0.667, 0},
-  {2.0, 1.333, 0},
+  {0.2, 0, 0}, 
+  {1.8, 0, 0}, 
+  {2.0, 0.2, 0},
+  {2.0, 1.8, 0},
+  {1.8, 2.0, 0},
+  {0.2, 2.0, 0},
+  {0, 1.8, 0},
+  {0, 0.2, 0},
 };
 
 cv::Mat rectify(const cv::Mat image){
@@ -90,10 +90,11 @@ void publishTransforms(vector<apriltag_pose_t> poses, vector<int> ids, std_msgs:
   pose_array_msg.header = header;
   // apriltag_detection_array_msg.header = header;
 
-  double correction = 1.0 + (0.274 / (1-0.274));
+  double correction = 1.0;
+  double correctionX = 1.0;
+  double correctionY = 1.0;
 
   for (int i=0; i<poses.size(); i++){
-
     // translation
     // tf.setOrigin(tf::Vector3(poses[i].t->data[0],
     //                          poses[i].t->data[1],
@@ -104,14 +105,22 @@ void publishTransforms(vector<apriltag_pose_t> poses, vector<int> ids, std_msgs:
     //                  poses[i].R->data[6], poses[i].R->data[7], poses[i].R->data[8]);
 
     // constrain the marker pose in 2d
-    tf.setOrigin(tf::Vector3(correction * poses[i].t->data[0], 0, correction * poses[i].t->data[2]));
+    // if ((poses[i].t->data[0] * poses[i].t->data[0] + poses[i].t->data[2] * poses[i].t->data[2]) >= 0.4) correction = 1.0 / 0.74;
+    if (std::abs(poses[i].t->data[0]) >= 0.5) correctionX = 1.0 / 0.74;
+    else correctionX = 1.0;
+
+    if (std::abs(poses[i].t->data[2]) >= 0.5) correctionY = 1.0 / 0.74;
+    else correctionY = 1.0;
+
+    // std::cout<<std::abs(poses[i].t->data[0])<<std::abs(poses[i].t->data[0]);
+
+    tf.setOrigin(tf::Vector3(correctionX * poses[i].t->data[0], 0, correctionY * poses[i].t->data[2]));
 
     so3_mat.setValue(poses[i].R->data[0],0,-poses[i].R->data[6],
 		     0,1,0,
 		     poses[i].R->data[6],0,poses[i].R->data[0]);
     
     double roll, pitch, yaw;
-    // std::cout<<roll<<pitch<<yaw<<endl;
 
     // orientation - q
     so3_mat.getRPY(roll, pitch, yaw); // so3 to RPY
@@ -122,7 +131,8 @@ void publishTransforms(vector<apriltag_pose_t> poses, vector<int> ids, std_msgs:
     string marker_name = "marker_" + to_string(ids[i]);
     string camera_name = "camera_" + to_string(ids[i]);
     br.sendTransform(tf::StampedTransform(tf.inverse(), ros::Time::now(), marker_name, camera_name));
-    ROS_INFO("Transformation published for marker.");
+    // br.sendTransform(tf::StampedTransform(tf, ros::Time::now(), camera_name, marker_name));
+    // ROS_INFO("Transformation published for marker.");
 
     // Prepare PoseArray message
     geometry_msgs::Pose pose;
@@ -159,7 +169,7 @@ void publishCameraBodyTF(int num) {
   tf::Quaternion q;
   tf::Matrix3x3 so3_mat;
   tf::Transform tf;
-  static tf::TransformBroadcaster br1;
+  static tf::TransformBroadcaster br;
   
   for (int i=0; i<num;i++){
     string body_name = "body_" + to_string(i);
@@ -174,7 +184,7 @@ void publishCameraBodyTF(int num) {
 
     tf.setRotation(q);
 
-    br1.sendTransform(tf::StampedTransform(tf, ros::Time::now(), camera_name, body_name));
+    br.sendTransform(tf::StampedTransform(tf, ros::Time::now(), camera_name, body_name));
   }
 }
 
@@ -184,16 +194,18 @@ void publishWorldMarkerTF(int num) {
   tf::Quaternion q;
   tf::Matrix3x3 so3_mat;
   tf::Transform tf;
-  static tf::TransformBroadcaster br2;
+  static tf::TransformBroadcaster br;
   
   for (int i=0; i<num;i++){
     string marker_name = "marker_" + to_string(i);
     tf.setOrigin(tf::Vector3(marker_translation[i][0],marker_translation[i][1],marker_translation[i][2]));
 
     if ((i == 0) || (i == 1)) so3_mat.setValue(-1,0,0,0,0,-1,0,-1,0);
-    else if ((i == 2) || (i == 3)) so3_mat.setValue(0,0,1,1,0,0,0,-1,0);
+    // else if ((i == 2) || (i == 3)) so3_mat.setValue(0,0,1,1,0,0,0,-1,0);
+    else if ((i == 2) || (i == 3)) so3_mat.setValue(0,0,1,-1,0,0,0,-1,0);
     else if ((i == 4) || (i == 5)) so3_mat.setValue(1,0,0,0,0,1,0,-1,0);
-    else if ((i == 6) || (i == 7)) so3_mat.setValue(0,0,1,-1,0,0,0,-1,0);
+    // else if ((i == 6) || (i == 7)) so3_mat.setValue(0,0,1,-1,0,0,0,-1,0);
+    else if ((i == 6) || (i == 7)) so3_mat.setValue(0,0,1,1,0,0,0,-1,0);
 
     double roll, pitch, yaw;
 
@@ -202,7 +214,7 @@ void publishWorldMarkerTF(int num) {
 
     tf.setRotation(q);
 
-    br2.sendTransform(tf::StampedTransform(tf, ros::Time::now(), "world", marker_name));
+    br.sendTransform(tf::StampedTransform(tf, ros::Time::now(), "world", marker_name));
   }
 }
 
@@ -215,7 +227,7 @@ void imageCallback(const sensor_msgs::Image::ConstPtr& msg){
   // rectify and run detection (pair<vector<apriltag_pose_t>, cv::Mat>)
   auto april_obj =  det.processImage(rectify(img_cv->image));
 
-  publishCameraBodyTF(8);
+  // publishCameraBodyTF(8);
   publishWorldMarkerTF(8);
   publishTransforms(get<0>(april_obj), get<1>(april_obj), header);
 }

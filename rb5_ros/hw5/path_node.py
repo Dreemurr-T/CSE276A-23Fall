@@ -8,7 +8,10 @@ import numpy as np
 import tf
 import tf2_ros
 from tf.transformations import quaternion_matrix, euler_from_quaternion
-from path_planning import generate_coverage1
+from path_planning import generate_coverage1, generate_coverage2
+
+X = []
+Y = []
 
 class WayPointsNode:
     def __init__(self):
@@ -21,7 +24,7 @@ class WayPointsNode:
         self.km = self.get_kinematic_matrix()               # kinematic matrix
         self.wheels_angular = [0.0] * 4                     # angular speed of the four wheels 
         self.min_angular = 6.5                            # minimum angular speed of each wheel (rad/s)
-        self.max_angular = 8.0                            # maximum angular speed of each wheel (rad/s)
+        self.max_angular = 9.0                            # maximum angular speed of each wheel (rad/s)
 
         self.curpoint = np.zeros(3)                         # current position of the robot
         self.dt = 0.05                                       # timestep for pid controller
@@ -34,10 +37,15 @@ class WayPointsNode:
     
     def cal_v(self):
         print(self.curpoint)
+        X.append(self.curpoint[0])
+        Y.append(self.curpoint[1])
+
         pid_output, self.cur_error = self.pid_control.update(self.dt, self.curpoint)
         self.theta = self.curpoint[2]
 
         self.V_X, self.V_Y, self.angular = pid_output[0], pid_output[1], pid_output[2]  # world coordinate
+
+        self.V_X, self.V_Y = self.avoid()
 
         self.v_x, self.v_y = self.world_to_robot(self.V_X, self.V_Y, self.theta)
 
@@ -75,7 +83,7 @@ class WayPointsNode:
     def get_error(self):
         # In this task, we care less about the angle of the car
         error = [self.cur_error[0], self.cur_error[1]]
-        return np.linalg.norm(error)
+        return np.linalg.norm(self.cur_error)
 
     def _clamp(self):
         lx = 0.066      # distance between front wheels (m)
@@ -115,19 +123,26 @@ class WayPointsNode:
         foundSolution = False
 
         for i in range(8):
-            body_name = "body_" + str(i)
-            if self.listener.frameExists(body_name):
+            camera_name = "camera_" + str(i)
+            marker_name = "marker_" + str(i)
+            if self.listener.frameExists(camera_name):
                 try:
                     now = rospy.Time()
                     # wait for the transform ready from the map to the camera for 0.1 second.
-                    self.listener.waitForTransform("world", body_name, now, rospy.Duration(0.1))
+                    self.listener.waitForTransform("world", camera_name, now, rospy.Duration(1.0))
                     # extract the transform camera pose in the map coordinate.
-                    (trans, rot) = self.listener.lookupTransform("world", body_name, now)
-                    # convert the rotate matrix to theta angle in 2d
-                    (roll, pitch, yaw) = euler_from_quaternion(rot)
-                    yaw = pi2pi(yaw)
+                    (trans, rot) = self.listener.lookupTransform("world", camera_name, now)
 
-                    result = np.array([trans[0], trans[1], yaw])
+                    # (trans1, rot1) = self.listener.lookupTransform(marker_name, camera_name, now)
+                    # print(trans1)
+                    # convert the rotate matrix to theta angle in 2d
+                    # (roll, pitch, yaw) = euler_from_quaternion(rot)
+                    # yaw = pi2pi(yaw)
+
+                    matrix = quaternion_matrix(rot)
+                    angle = math.atan2(matrix[1][2], matrix[0][2])
+
+                    result = np.array([trans[0], trans[1], angle])
                     foundSolution = True
                     break
                 except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException, tf2_ros.TransformException):
@@ -142,6 +157,22 @@ class WayPointsNode:
             self.curpoint[2] += self.dt * self.angular
             self.curpoint[2] = (self.curpoint[2] + math.pi) % (2 * math.pi) - math.pi
 
+    def avoid(self):
+        V_X = self.V_X
+        V_Y = self.V_Y
+
+        if abs(2 - self.curpoint[0]) <= 0.2:
+            V_X = -0.5
+        elif abs(self.curpoint[0]) <= 0.2:
+            V_X = 0.5
+        
+        if abs(2 - self.curpoint[1]) <= 0.2:
+            V_Y = -0.5
+        elif abs(self.curpoint[1]) <= 0.2:
+            V_Y = 0.5
+
+        return V_X, V_Y
+
 def pi2pi(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
 
@@ -151,6 +182,7 @@ if __name__ == "__main__":
 
     _, waypoints = generate_coverage1()
     # points_list = generate_speed_path()
+    # waypoints = generate_coverage2()
 
     for i in range(len(waypoints)-1):
         setpoint = waypoints[i+1]
@@ -162,7 +194,7 @@ if __name__ == "__main__":
         waypoints_node.cur_error = setpoint - waypoints_node.curpoint
         waypoints_node.cur_error[2] = pi2pi(waypoints_node.cur_error[2])
 
-        waypoints_node.pid_control.clear(Kp=0.2, Ki=0, Kd=0, setpoint=setpoint)
+        waypoints_node.pid_control.clear(Kp=0.1, Ki=0, Kd=0, setpoint=setpoint)
 
         while waypoints_node.get_error() >= waypoints_node.min_error:
             wheels_angular = waypoints_node.cal_v()
@@ -174,3 +206,5 @@ if __name__ == "__main__":
             waypoints_node.update_pos()
 
     waypoints_node.send_end_signal()
+    np.savetxt('hw5/X.txt', X)
+    np.savetxt('hw5/Y.txt', Y)
