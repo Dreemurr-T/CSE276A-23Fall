@@ -26,6 +26,13 @@ def generate_coverage1():
 
     path = []
 
+    orientations = {
+        (1, 0): 0,
+        (0, 1): math.pi/2,
+        (-1, 0): math.pi,
+        (0, -1): -math.pi/2
+    }
+
     offsetX = 1
     offsetY = 1
 
@@ -51,40 +58,24 @@ def generate_coverage1():
     
     if m % 2 == 1 and n % 2 == 1:
         path.append((int(m/2), int(n/2)))
-    # waypoints = []
 
-    # for i in range(len(safety_path) - 1):
-    #     direction = [safety_path[i+1][0] - safety_path[i][0], safety_path[i+1][1] - safety_path[i][1]]
-    #     if direction == [-1, 0]:
-    #         angle = math.pi
-    #     elif direction == [0, 1]:
-    #         angle = math.pi / 2
-    #     else:
-    #         angle = 3 * math.pi / 4
-        
-    #     p = (safety_path[i+1][0], safety_path[i+1][1], angle)
-    #     path.append(p)
+    waypoints = []
+    waypoints.append((0.1, 0.1, 0))
+
+    for i in range(len(path) - 1):
+        direction = (path[i+1][0] - path[i][0], path[i+1][1] - path[i][1])
+        angle = orientations[direction]
+
+        waypoint = (path[i+1][0] * 0.1, path[i+1][1] * 0.1, angle)
+
+        waypoints.append(waypoint)
     
-    return np.array(path)
+    return np.array(path), np.array(waypoints)
 
-def generate_coverage2():
+# def generate_coverage2():
     
 
-if __name__ == '__main__':
-    # world_grid, m, n = create_world(length=2, width=2)
-    # world_grid = set_obstacle(startx=8, starty=8, obLen=0.4, obWid=0.4)
-
-    # start_point = (16, 4)
-    # target_point = (4, 16)
-    # world_grid[start_point] = 3
-    # world_grid[target_point] = 3
-
-    # print(world_grid)
-    # path = []
-    # came_from, world_grid = Astar_planning(start_point, target_point, m, n, world_grid)
-    
-    # pre = target_point
-    
-    path = generate_coverage()
-    print(path)
+if __name__ == '__main__':    
+    path, waypoints = generate_coverage1()
+    print(path.shape, waypoints.shape)
     

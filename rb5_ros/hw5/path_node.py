@@ -8,12 +8,12 @@ import numpy as np
 import tf
 import tf2_ros
 from tf.transformations import quaternion_matrix, euler_from_quaternion
-from rb5_ros.hw5.path_planning import generate_safety_path, generate_speed_path
+from path_planning import generate_coverage1
 
 class WayPointsNode:
     def __init__(self):
         # publish the velocity of each wheel to the velocity topic
-        self.publisher = rospy.Publisher("/velocity", Float64MultiArray, queue_size=10)
+        self.publisher = rospy.Publisher("/velocity", Float64MultiArray, queue_size=1)
 
         self.V_X, self.V_Y, self.angular = 0.0, 0.0, 0.0     # velocity under world coordinate
         self.v_x, self.v_y = 0.0, 0.0                        # velocity under robot coordinate
@@ -33,6 +33,7 @@ class WayPointsNode:
         self.listener = tf.TransformListener()
     
     def drive(self):
+        print(self.curpoint)
         pid_output, self.cur_error = self.pid_control.update(self.dt, self.curpoint)
         self.theta = self.curpoint[2]
 
@@ -129,8 +130,6 @@ class WayPointsNode:
                     # extract the transform camera pose in the map coordinate.
                     (trans, rot) = self.listener.lookupTransform("world", body_name, now)
                     # convert the rotate matrix to theta angle in 2d
-                    # matrix = quaternion_matrix(rot)
-                    # angle = math.atan2(matrix[1][2], matrix[0][2])
                     (roll, pitch, yaw) = euler_from_quaternion(rot)
                     yaw = pi2pi(yaw)
 
@@ -151,12 +150,12 @@ if __name__ == "__main__":
     rospy.init_node("way_points")
     waypoints_node = WayPointsNode()
 
-    points_list = generate_safety_path()
+    _, waypoints = generate_coverage1()
     # points_list = generate_speed_path()
 
-    for i in range(len(points_list)-1):
-        setpoint = points_list[i+1]
-        prepoint = points_list[i]
+    for i in range(len(waypoints)-1):
+        setpoint = waypoints[i+1]
+        prepoint = waypoints[i]
 
         if i == 0:
             waypoints_node.curpoint = prepoint
@@ -169,6 +168,6 @@ if __name__ == "__main__":
         while waypoints_node.get_error() >= waypoints_node.min_error:
             waypoints_node.drive()
             time.sleep(0.05)
-            waypoints_node.update_pos()
+            # waypoints_node.update_pos()
 
     waypoints_node.send_end_signal()
