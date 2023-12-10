@@ -21,7 +21,7 @@ class WayPointsNode:
         self.km = self.get_kinematic_matrix()               # kinematic matrix
         self.wheels_angular = [0.0] * 4                     # angular speed of the four wheels 
         self.min_angular = 6.5                            # minimum angular speed of each wheel (rad/s)
-        self.max_angular = 8.5                            # maximum angular speed of each wheel (rad/s)
+        self.max_angular = 8.0                            # maximum angular speed of each wheel (rad/s)
 
         self.curpoint = np.zeros(3)                         # current position of the robot
         self.dt = 0.05                                       # timestep for pid controller
@@ -32,7 +32,7 @@ class WayPointsNode:
 
         self.listener = tf.TransformListener()
     
-    def drive(self):
+    def cal_v(self):
         print(self.curpoint)
         pid_output, self.cur_error = self.pid_control.update(self.dt, self.curpoint)
         self.theta = self.curpoint[2]
@@ -52,13 +52,7 @@ class WayPointsNode:
 
         self.V_X, self.V_Y = self.robot_to_world(self.v_x, self.v_y, self.theta)
 
-        self.curpoint[0] += self.dt * self.V_X
-        self.curpoint[1] += self.dt * self.V_Y
-        self.curpoint[2] += self.dt * self.angular
-        self.curpoint[2] = (self.curpoint[2] + math.pi) % (2 * math.pi) - math.pi
-        
-        points_msg = Float64MultiArray(data=self.wheels_angular)
-        self.publisher.publish(points_msg)
+        return self.wheels_angular
     
     def send_end_signal(self):
         end_msg = Float64MultiArray(data=[0.0, 0.0, 0.0, 0.0])
@@ -142,6 +136,11 @@ class WayPointsNode:
 
         if foundSolution:
             self.curpoint = result
+        else:
+            self.curpoint[0] += self.dt * self.V_X
+            self.curpoint[1] += self.dt * self.V_Y
+            self.curpoint[2] += self.dt * self.angular
+            self.curpoint[2] = (self.curpoint[2] + math.pi) % (2 * math.pi) - math.pi
 
 def pi2pi(angle):
     return (angle + math.pi) % (2 * math.pi) - math.pi
@@ -166,8 +165,12 @@ if __name__ == "__main__":
         waypoints_node.pid_control.clear(Kp=0.2, Ki=0, Kd=0, setpoint=setpoint)
 
         while waypoints_node.get_error() >= waypoints_node.min_error:
-            waypoints_node.drive()
+            wheels_angular = waypoints_node.cal_v()
+            
+            points_msg = Float64MultiArray(data=wheels_angular)
+            waypoints_node.publisher.publish(points_msg)
             time.sleep(0.05)
-            # waypoints_node.update_pos()
+            
+            waypoints_node.update_pos()
 
     waypoints_node.send_end_signal()

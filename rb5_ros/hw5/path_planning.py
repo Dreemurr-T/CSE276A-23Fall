@@ -33,8 +33,8 @@ def generate_coverage1():
         (0, -1): -math.pi/2
     }
 
-    offsetX = 1
-    offsetY = 1
+    offsetX = 2
+    offsetY = 2
 
     while offsetX <= int(m/2) and offsetY <= int(n/2):
         for i in range(offsetX, m-offsetX-1, 1):
@@ -60,7 +60,7 @@ def generate_coverage1():
         path.append((int(m/2), int(n/2)))
 
     waypoints = []
-    waypoints.append((0.1, 0.1, 0))
+    waypoints.append((0.2, 0.2, 0))
 
     for i in range(len(path) - 1):
         direction = (path[i+1][0] - path[i][0], path[i+1][1] - path[i][1])
